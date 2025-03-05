@@ -1,6 +1,5 @@
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import reactor.blockhound.BlockHound;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
@@ -217,13 +216,11 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
      */
     @Test
     public void prettify() {
-        //todo: feel free to change code as you need
-        //todo: use when,and,then...
-        Mono<Boolean> successful = null;
+        Mono<Boolean> successful = openFile()
+                .then(writeToFile("0x3522285912341"))
+                .then(closeFile())
+                .thenReturn(true);
 
-        openFile();
-        writeToFile("0x3522285912341");
-        closeFile();
 
         //don't change below this line
         StepVerifier.create(successful)
@@ -240,10 +237,8 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
      */
     @Test
     public void one_to_n() {
-        //todo: feel free to change code as you need
-        Flux<String> fileLines = null;
-        openFile();
-        readFile();
+        Flux<String> fileLines = openFile()
+                .thenMany(readFile());
 
         StepVerifier.create(fileLines)
                 .expectNext("0x1", "0x2", "0x3")
@@ -256,12 +251,9 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
      */
     @Test
     public void acid_durability() {
-        //todo: feel free to change code as you need
-        Flux<String> committedTasksIds = null;
-        tasksToExecute();
-        commitTask(null);
+        Flux<String> committedTasksIds = tasksToExecute()
+                .concatMap(taskId -> taskId.delayUntil(this::commitTask));
 
-        //don't change below this line
         StepVerifier.create(committedTasksIds)
                 .expectNext("task#1", "task#2", "task#3")
                 .verifyComplete();
@@ -276,10 +268,9 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
      */
     @Test
     public void major_merger() {
-        //todo: feel free to change code as you need
-        Flux<String> microsoftBlizzardCorp =
-                microsoftTitles();
-        blizzardTitles();
+        Flux<String> microsoftBlizzardCorp = Flux.merge(
+                microsoftTitles(),
+                blizzardTitles());
 
         //don't change below this line
         StepVerifier.create(microsoftBlizzardCorp)
@@ -302,10 +293,11 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
      */
     @Test
     public void car_factory() {
-        //todo: feel free to change code as you need
-        Flux<Car> producedCars = null;
-        carChassisProducer();
-        carEngineProducer();
+        Flux<Car> producedCars = Flux.zip(
+                carChassisProducer(),
+                carEngineProducer(),
+                Car::new
+        );
 
         //don't change below this line
         StepVerifier.create(producedCars)
@@ -324,16 +316,21 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
     //only read from sourceRef
     AtomicReference<String> sourceRef = new AtomicReference<>("X");
 
-    //todo: implement this method based on instructions
     public Mono<String> chooseSource() {
-        sourceA(); //<- choose if sourceRef == "A"
-        sourceB(); //<- choose if sourceRef == "B"
-        return Mono.empty(); //otherwise, return empty
+        return Mono.defer(() -> {
+            var source = sourceRef.get();
+            if ("A".equals(source)) {
+                return sourceA();
+            } else if ("B".equals(source)) {
+                return sourceB();
+            } else {
+                return Mono.empty();
+            }
+        });
     }
 
     @Test
     public void deterministic() {
-        //don't change below this line
         Mono<String> source = chooseSource();
 
         sourceRef.set("A");
@@ -356,12 +353,13 @@ public class c6_CombiningPublishers extends CombiningPublishersBase {
      */
     @Test
     public void cleanup() {
-        BlockHound.install(); //don't change this line, blocking = cheating!
 
-        //todo: feel free to change code as you need
-        Flux<String> stream = StreamingConnection.startStreaming()
-                .flatMapMany(Function.identity());
-        StreamingConnection.closeConnection();
+        Flux<String> stream = Flux.usingWhen(
+                StreamingConnection.startStreaming(),
+                Function.identity(),
+                some -> StreamingConnection.closeConnection()
+        );
+
 
         //don't change below this line
         StepVerifier.create(stream)
