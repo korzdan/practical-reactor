@@ -3,6 +3,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -34,9 +37,8 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     public void houston_we_have_a_problem() {
         AtomicReference<Throwable> errorRef = new AtomicReference<>();
         Flux<String> heartBeat = probeHeartBeatSignal()
-                //todo: do your changes here
-                //todo: & here
-                ;
+                .timeout(Duration.of(3, ChronoUnit.SECONDS))
+                .doOnError(errorRef::set);
 
         StepVerifier.create(heartBeat)
                     .expectNextCount(3)
@@ -54,9 +56,7 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     @Test
     public void potato_potato() {
         Mono<String> currentUser = getCurrentUser()
-                //todo: change this line only
-                //use SecurityException
-                ;
+                .onErrorMap(SecurityException::new);
 
         StepVerifier.create(currentUser)
                     .expectErrorMatches(e -> e instanceof SecurityException &&
@@ -70,8 +70,8 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
      */
     @Test
     public void under_the_rug() {
-        Flux<String> messages = messageNode();
-        //todo: change this line only
+        Flux<String> messages = messageNode()
+                .onErrorResume(error -> Flux.empty());
         ;
 
         StepVerifier.create(messages)
@@ -86,9 +86,8 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     @Test
     public void have_a_backup() {
         //todo: feel free to change code as you need
-        Flux<String> messages = null;
-        messageNode();
-        backupMessageNode();
+        Flux<String> messages = messageNode()
+                .onErrorResume(error -> backupMessageNode());
 
         //don't change below this line
         StepVerifier.create(messages)
@@ -103,8 +102,9 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     @Test
     public void error_reporter() {
         //todo: feel free to change code as you need
-        Flux<String> messages = messageNode();
-        errorReportService(null);
+        Flux<String> messages = messageNode()
+                .onErrorResume(error -> errorReportService(error)
+                        .thenMany(Flux.error(error)));
 
         //don't change below this line
         StepVerifier.create(messages)
