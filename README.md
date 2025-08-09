@@ -5,6 +5,7 @@ Welcome to practical Project Reactor and reactive programming workshop! Over 100
 ![Project Reactor](img/reactor.gif)
 ## Who is this workshop for?
 
+
 Workshop is designed for relative beginners in [Project Reactor](https://projectreactor.io/), that already have some theory knowledge but lack hands-on experience.
 If you are absolute beginner in Project Reactor, you might want to start with some theory what asynchronous, reactive programming is and how Project Reactor can help you with that.
 
