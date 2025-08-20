@@ -1,3 +1,4 @@
+import java.util.concurrent.Delayed;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
@@ -9,6 +10,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import reactor.util.retry.Retry;
 
 /**
  * It's time introduce some resiliency by recovering from unexpected events!
@@ -121,19 +123,22 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
      */
     @Test
     public void unit_of_work() {
-        // todo: stuck
         Flux<Task> taskFlux = taskQueue()
-                .flatMap(
-                        task -> task.execute()
-                                .onErrorResume(e -> task.rollback(e).then(Mono.empty()))
-                                .then(Mono.defer(task::commit))
-                                .thenReturn(task)
-                );
+            .flatMap(
+                task -> task.execute()
+                    .then(task.commit())
+                    .onErrorResume(
+                e -> task
+                            .rollback(e)
+                            .then(Mono.empty())
+                    )
+                    .thenReturn(task)
+            );
 
         StepVerifier.create(taskFlux)
-                .expectNextMatches(task -> task.executedExceptionally.get() && !task.executedSuccessfully.get())
-                .expectNextMatches(task -> task.executedSuccessfully.get() && task.executedSuccessfully.get())
-                .verifyComplete();
+            .expectNextMatches(task -> task.executedExceptionally.get() && !task.executedSuccessfully.get())
+            .expectNextMatches(task -> task.executedSuccessfully.get() && task.executedSuccessfully.get())
+            .verifyComplete();
     }
 
     /**
@@ -169,8 +174,9 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     public void resilience() {
         //todo: change code as you need
         Flux<String> content = getFilesContent()
-                .flatMap(Function.identity())
-                .onErrorResume(); //start from here
+                .flatMap(mono -> mono
+                    .onErrorResume(e -> Mono.empty())
+                );
 
         //don't change below this line
         StepVerifier.create(content)
@@ -185,8 +191,7 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     @Test
     public void its_hot_in_here() {
         Mono<Integer> temperature = temperatureSensor()
-                //todo: change this line only
-                ;
+            .retry();
 
         StepVerifier.create(temperature)
                 .expectNext(34)
@@ -201,8 +206,7 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
     @Test
     public void back_off() {
         Mono<String> connection_result = establishConnection()
-                //todo: change this line only
-                ;
+            .retryWhen(Retry.backoff(3, Duration.ofSeconds(5)));
 
         StepVerifier.create(connection_result)
                 .expectNext("connection_established")
@@ -216,14 +220,13 @@ public class c7_ErrorHandling extends ErrorHandlingBase {
      */
     @Test
     public void good_old_polling() {
-        //todo: change code as you need
-        Flux<String> alerts = null;
-        nodeAlerts();
+      Flux<String> alerts = nodeAlerts()
+          .repeatWhen(flux -> flux.delayElements(Duration.ofSeconds(1)));
 
-        //don't change below this line
-        StepVerifier.create(alerts.take(2))
-                .expectNext("node1:low_disk_space", "node1:down")
-                .verifyComplete();
+      //don't change below this line
+      StepVerifier.create(alerts.take(2))
+          .expectNext("node1:low_disk_space", "node1:down")
+          .verifyComplete();
     }
 
     public static class SecurityException extends Exception {
